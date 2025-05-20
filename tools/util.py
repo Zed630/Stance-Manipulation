@@ -11,7 +11,7 @@ from tools.sm_class import Instence
 
 random.seed(1)
 def load_prompts(llmname="llama-2"):
-    df = pd.read_csv("/data/fushuangjie/Jailbreak/dataset/harmful_behaviors.csv", sep=',')
+    df = pd.read_csv("", sep=',')
     harmful_prompts = df['goal']
     harmful_targets = df['target']
 
