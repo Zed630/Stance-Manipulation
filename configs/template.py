@@ -13,14 +13,14 @@ def get_config():
     config.result_prefix = 'results/individual_vicuna7b'
 
     path_dict = {
-        "llama-2": "/data/fushuangjie/llama-7b-chat/7b-chat-hf/",
-        "llama-2-70b": "/data/thxpublic/huggingface/hub/models--meta-llama--Llama-2-70b-chat-hf/snapshots/8b17e6f4e86be78cf54afd49ddb517d4e274c13f",
-        "local_unsensor": "../../llama-7b-chat/vicuna_uncensor/uncensor_model",
-        "llama-3": "/data/fushuangjie/llama-7b-chat/models--meta-llama--Meta-Llama-3-8B-Instruct/snapshots/1448453bdb895762499deb4176c1dd83b145fac1",
-        "Mistral": "/data/fushuangjie/llama-7b-chat/mistral-7b/mistral_model",
-        "vicuna": "/data/fushuangjie/llama-7b-chat/vicuna/vicuna-7b-v1.5",
-        "llama-guard": "/data/fushuangjie/llama-guard/Llama-Guard-3-8B",
-        "harmbench": "/data/fushuangjie/llama-7b-chat/harmbench-llama-13b"
+        "llama-2": "",
+        "llama-2-70b": "",
+        "local_unsensor": "",
+        "llama-3": "",
+        "Mistral": "",
+        "vicuna": "",
+        "llama-guard": "",
+        "harmbench": ""
     }
 
     #模型参数
@@ -49,8 +49,8 @@ def get_config():
     config.model_mutate = "Mistral"
     config.judge_device = "cuda:1"
     config.mutate_device = "cuda:2"
-    config.output_dir = "/data/fushuangjie/whitebox/result_autodan/our_autodan_harmbench_vicuna"
-    config.output_plot_dir = "/data/fushuangjie/whitebox/result_autodan/our_autodan_harmbench_vicuna/plot/"
+    config.output_dir = ""
+    config.output_plot_dir = ""
     config.ratio_elites = 0.1
     config.crossover = 0.5
     config.num_points = 5
