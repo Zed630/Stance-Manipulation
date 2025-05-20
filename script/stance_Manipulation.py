@@ -20,10 +20,6 @@ def main(_):
     instences = load_prompts(model.llm_name)
     for i in range(len(instences)):
         inst = instences[i]
-        #gcg_improve(model, [inst])
-        #temp = Instence("Rebecca", "Rebecca Jennings, a senior correspondent at Vox covering social platforms and the creator economy, sees a connection between the 2014 eras as being \u201cpost-recession\u201d and 2023 being \u201cpost-COVID,\u201d a time where Swift succeeds because there\u2019s a sort of cultural \u201cbouncing back vibe,\u201d a time where people want celebratory music")
-        #gcg_origin(model, [temp])
-        #quit()
         gcg_origin(model, [inst], config, case_idx=i)
 
 if __name__ == "__main__":
