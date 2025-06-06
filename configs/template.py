@@ -7,7 +7,7 @@ def get_config():
     #Experimental config
     config.transfer = False
     config.early_stopping = True
-    config.max_epochs = 100
+    config.max_epochs = 5000
     config.batch_size = 16
     #config.batch_size = 64
     config.result_prefix = 'results/individual_vicuna7b'
