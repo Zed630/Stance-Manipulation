@@ -182,7 +182,7 @@ def gcg_origin(model, instences, config, case_idx):
                 inst.whole_ids[:, inst.L1:inst.L1+suffix_length] = suffix_ids
                 inst.refuse_ids[:, inst.L1:inst.L1 + suffix_length] = suffix_ids
                 #Evaluation and Save
-                if config.generate_response:
+                if config.generate_response and (i+1)%20==0:
                     model.generate_by_token_ids(ids, length=100)
                     if early_stopping and eval.llm_detector(inst.prompt, model.generate_text, config):
                         _pass += 1
