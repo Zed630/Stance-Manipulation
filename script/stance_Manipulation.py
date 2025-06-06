@@ -15,8 +15,7 @@ config_flags.DEFINE_config_file('config_file', '../configs/template.py')
 def main(_):
     config = FLAGS.config_file
     model = LLM(name=config.model_name, device=config.device, dtype=config.dtype, path=config.model_path)
-    
-    #进行gcg越狱
+
     instences = load_prompts(model.llm_name)
     for i in range(len(instences)):
         inst = instences[i]
