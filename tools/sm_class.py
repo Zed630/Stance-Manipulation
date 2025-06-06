@@ -18,13 +18,6 @@ from transformers.generation.logits_process import LogitsProcessor, LogitsProces
 import unicodedata
 
 def get_nonsense_token_ids(model):
-    """
-    返回一个列表指示词表中哪些token存在以下任一问题:
-    + 包含不可见unicode字符
-    + 两侧存在空白
-    + 没有语义
-    + 是特殊token
-    """
     def contains_uninterpretable_characters(s):
         try:
             s = s.encode('utf-8').decode('utf-8')
@@ -57,18 +50,17 @@ class LLM():
     def __init__(self, name="llama-2", device="cpu", dtype=None, path=""):
         super(LLM, self).__init__()
         self.llm_name = name
-        #初始化模型路径
+        #model path
         #self.init_path()
         self.llm_path = path
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         self.target_model = AutoModelForCausalLM.from_pretrained(self.llm_path, torch_dtype=dtype).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(self.llm_path)
         self.template = get_conversation_template(self.llm_name)
-        #直接找到embed
+        #embedding
         for module in self.target_model.modules():
             if isinstance(module, torch.nn.Embedding):
                 self.embed = module
-        #词表大小
         self.vocab_size = self.embed.weight.size(0)
         self.nonsense_ids = get_nonsense_token_ids(self.tokenizer)
 
@@ -97,7 +89,6 @@ class LLM():
         top_k_probabilities = torch.softmax(next_token_logits, dim=-1).squeeze(0)[top_k_indices]
         predicted_tokens = [tokenizer.decode(token_id) for token_id in top_k_indices]
 
-        # 打印结果
         for i, (token, prob) in enumerate(zip(predicted_tokens, top_k_probabilities)):
             print(f"{i + 1}: {token} (Probability: {prob.item():.4f})")
 
@@ -208,4 +199,4 @@ class evaluator():
 
 if __name__ == '__main__':
     llm = LLM(name='llama-2', device="cuda:6", dtype=torch.float16, path=config.model_path)
-    print(llm.generate("你好"))
+    print(llm.generate("hello"))
