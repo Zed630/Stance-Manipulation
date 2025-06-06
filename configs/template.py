@@ -4,7 +4,7 @@ import torch
 def get_config():
     config = config_dict.ConfigDict()
 
-    #实验参数
+    #Experimental config
     config.transfer = False
     config.early_stopping = True
     config.max_epochs = 100
@@ -23,7 +23,7 @@ def get_config():
         "harmbench": ""
     }
 
-    #模型参数
+    #Model config
     config.model_path = path_dict["llama-2"]
     config.model_name="llama-2"
     config.device = "cuda:7"
@@ -31,7 +31,7 @@ def get_config():
     config.detector_path = path_dict["harmbench"]
     config.detector_device = "cuda:6"
 
-    #SM参数
+    #SM config
     config.sm_layer = 14
     config.suffix_length = 20
     config.sample_num = 32
@@ -42,7 +42,7 @@ def get_config():
     config.save_record = False
     config.result_path = "../result"
 
-    #autoDan参数
+    #autoDan config
     config.model_short_name = "Llama2"
     config.developer_name = "Meta"
     config.model_judge = "harmbench"
