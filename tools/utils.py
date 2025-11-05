@@ -3,15 +3,16 @@ import torch.nn.functional as F
 import pandas as pd
 from sklearn.decomposition import PCA
 import numpy as np
-from tools.sm_class import evaluator
+from tools.classes import evaluator
 import jsonlines
 
-from tools.sm_class import Instence
+from tools.classes import Instence
 
 
 random.seed(1)
-def load_prompts(llmname="llama-2"):
-    df = pd.read_csv("", sep=',')
+
+def load_prompts(test_prompts_path):
+    df = pd.read_csv(test_prompts_path, sep=',')
     harmful_prompts = df['goal']
     harmful_targets = df['target']
 
@@ -46,14 +47,14 @@ def gcg_loss(logits, labels):
     assert len(ans.size()) == 1
     return ans  # B
 
-def gcg_origin(model, instences, config, case_idx):
+def jailbreak(model, instences, config, case_idx):
     suffix_length = config.suffix_length
     suffix_num = config.sample_num
     batch_size = config.batch_size
     early_stopping = config.early_stopping
     layer = config.sm_layer
     alpha = config.alpha
-    eval = evaluator()
+    evaluator = Evaluator()
 
     endtoken_length = 0
     embed = model.embed
@@ -62,10 +63,9 @@ def gcg_origin(model, instences, config, case_idx):
     origin = torch.load(f"./{model.llm_name}/test_{layer}_h.pth").to(model.device).to(model.target_model.dtype)
     direction = aver_target - origin
     # Initialize suffix
-    #suffix_ids = torch.randint(0, V, (1, suffix_length)).to(model.device)
     suffix_ids = torch.tensor(model.tokenizer.encode("! " * suffix_length, add_special_tokens=False)[:suffix_length]).view(1, -1).to(model.device)
 
-    total_start = time.time()
+    start_time = time.time()
     for inst in instences:
         ids, prompt = model.construct_inputs(inst.prompt, sys="")
         ids_temp, prompt_temp = model.construct_inputs("[[prompt]]", sys="")
@@ -73,34 +73,23 @@ def gcg_origin(model, instences, config, case_idx):
         ids = ids.to(model.device)
         prompt_len = len(prompt)
 
-        """if model.llm_name == "llama-3":
-            ids = torch.cat([ids[:, :-model.endtoken_length], torch.tensor([256]).view(1, -1).to(model.device), ids[:, -model.endtoken_length:]], dim=1)
-            prompt_len += 1"""
         inst.L1 = prompt_len - endtoken_length  # Suffix index
         outputs = model.target_model(input_ids=ids.view(1, -1), output_hidden_states=True)
         inst.origin = outputs.hidden_states[layer][0][-1].detach().clone()
-        inst.semantic = outputs.hidden_states[18][0][-2].detach().clone()
+
         # Appending suffix
         ids = torch.cat([ids[:, :inst.L1], suffix_ids, ids[:, inst.L1:]], dim=1)
         inst.ids = ids
         inst.L2 = ids.size(1)
         # Appending target
         ans_ids = torch.tensor(model.tokenizer.encode(inst.target, add_special_tokens=False)[:suffix_length]).view(1, -1).to(model.device)
-        refuse_ids = torch.tensor(model.tokenizer.encode(" I cannot fulfill", add_special_tokens=False)[:suffix_length]).view(1, -1).to(model.device)
         inst.whole_ids = torch.cat([ids, ans_ids], dim=1).clone()
-        inst.refuse_ids = torch.cat([ids, refuse_ids], dim=1).clone()
         #labels
         labels = torch.full_like(inst.whole_ids, -100)
         labels[:, inst.L2:] = inst.whole_ids[:, inst.L2:]
         inst.labels = labels.clone()
-        labels = torch.full_like(inst.refuse_ids, -100)
-        labels[:, inst.L2:] = inst.refuse_ids[:, inst.L2:]
-        inst.refuse_labels = labels.clone()
 
     # Iteration and Evaluation
-    gradient_cost = 0
-    batch_cost = 0
-    evaluation_cost = 0
     for i in range(config.max_epochs):
         # construct input
         totol_grad = 0
@@ -115,9 +104,7 @@ def gcg_origin(model, instences, config, case_idx):
             # get gradient
             outputs = model.target_model(inputs_embeds=inputs_embeds, labels=inst.labels, output_hidden_states=True)
             loss = outputs.loss
-            #loss = outputs.loss*alpha - (outputs.hidden_states[layer][0][inst.L2-1] - inst.origin).flatten() @ direction.flatten() / direction.norm()
-            #loss = - (outputs.hidden_states[20][0][inst.L2 - 1] - inst.origin).flatten() @ direction.flatten() / direction.norm()
-            inst.semantic_change = torch.norm(outputs.hidden_states[18][0][-2] - inst.semantic)
+            loss = outputs.loss*alpha - (outputs.hidden_states[layer][0][inst.L2-1] - inst.origin).flatten() @ direction.flatten() / direction.norm()
             print(loss.item(), outputs.loss)
 
             loss.backward()
@@ -127,11 +114,9 @@ def gcg_origin(model, instences, config, case_idx):
             token_grad = -token_grad[:, inst.L1:]
 
             totol_grad += token_grad
-        gradient_cost += time.time() - start_time
 
         # choose substitude
         with torch.no_grad():
-            start_time = time.time()
             # getoff tokens
             for token_ids in model.nonsense_ids:
                 totol_grad[:, :, token_ids] = float('-inf')
@@ -166,28 +151,21 @@ def gcg_origin(model, instences, config, case_idx):
                     # gcg_batch_loss
                     outputs = model.target_model(input_ids=torch.cat(batch_ids), output_hidden_states=True)
                     logits = outputs.logits
-                    #temp = gcg_loss(logits, torch.cat([inst.labels] * len(batch)))
                     temp = gcg_loss(logits, torch.cat([inst.labels]*len(batch)))*alpha - (outputs.hidden_states[layer][:, inst.L2-1] - inst.origin).view(-1, 4096) @ direction.flatten() / direction.norm()
-                    #temp = gcg_loss(logits, torch.cat([inst.labels] * len(batch)))
                     batch_loss = torch.cat([batch_loss, temp])
                 total_loss += batch_loss
-            best_token_ids = suffix_id_lst[torch.argmin(total_loss)]
-            batch_cost += time.time() - start_time
-            start_time = time.time()
             suffix_ids = best_token_ids.clone()
             _pass = 0
 
             for inst in instences:
                 ids = torch.cat([inst.ids[:, :inst.L1], suffix_ids, inst.ids[:, inst.L1+suffix_length:]], dim=1)
                 inst.whole_ids[:, inst.L1:inst.L1+suffix_length] = suffix_ids
-                inst.refuse_ids[:, inst.L1:inst.L1 + suffix_length] = suffix_ids
                 #Evaluation and Save
                 if config.generate_response and (i+1)%20==0:
                     model.generate_by_token_ids(ids, length=100)
-                    if early_stopping and eval.llm_detector(inst.prompt, model.generate_text, config):
+                    if early_stopping and evaluator.llm_detector(inst.prompt, model.generate_text, config):
                         _pass += 1
                     whole_prompt = model.tokenizer.decode(ids[0])
-                    evaluation_cost += time.time() - start_time
                     # save result
                     data = {
                         'request': inst.prompt,
@@ -197,14 +175,13 @@ def gcg_origin(model, instences, config, case_idx):
                         'eval_results': _pass > 0,
                         "full_prompt": whole_prompt,
                         'case_idx': case_idx,
-                        "time_cost": time.time() - total_start,
-                        "refusal_loss": model.target_model(input_ids=inst.refuse_ids, labels=inst.refuse_labels).loss.item(),
+                        "time_cost": time.time() - start_time,
                         "loss_target": model.target_model(input_ids=inst.whole_ids, labels=inst.labels).loss.item()
                     }
                     if config.save_record:
-                        save_to_jsonl(data, full_path=f'{config.result_path}/{model.llm_name}/SM_{layer}_small_sample_origin.jsonl')
+                        save_to_jsonl(data, full_path=f'{config.result_path}/{model.llm_name}/SM_{layer}.jsonl')
                         if _pass:
-                            save_to_jsonl(data, full_path=f'{config.result_path}/{model.llm_name}/SM_{layer}_small_sample_origin_successful.jsonl')
+                            save_to_jsonl(data, full_path=f'{config.result_path}/{model.llm_name}/SM_{layer}_successful.jsonl')
             print(f"pass:{_pass}")
 
         if _pass == len(instences) and early_stopping:
