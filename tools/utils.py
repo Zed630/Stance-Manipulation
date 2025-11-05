@@ -1,9 +1,8 @@
 import torch, random, jsonlines, time, os
 import torch.nn.functional as F
 import pandas as pd
-from sklearn.decomposition import PCA
 import numpy as np
-from tools.classes import evaluator
+from tools.classes import Evaluator
 import jsonlines
 
 from tools.classes import Instence
@@ -47,14 +46,13 @@ def gcg_loss(logits, labels):
     assert len(ans.size()) == 1
     return ans  # B
 
-def jailbreak(model, instences, config, case_idx):
+def jailbreak(model, instences, config, case_idx, evaluator):
     suffix_length = config.suffix_length
     suffix_num = config.sample_num
     batch_size = config.batch_size
     early_stopping = config.early_stopping
     layer = config.sm_layer
     alpha = config.alpha
-    evaluator = Evaluator()
 
     endtoken_length = 0
     embed = model.embed
@@ -154,6 +152,7 @@ def jailbreak(model, instences, config, case_idx):
                     temp = gcg_loss(logits, torch.cat([inst.labels]*len(batch)))*alpha - (outputs.hidden_states[layer][:, inst.L2-1] - inst.origin).view(-1, 4096) @ direction.flatten() / direction.norm()
                     batch_loss = torch.cat([batch_loss, temp])
                 total_loss += batch_loss
+            best_token_ids = suffix_id_lst[torch.argmin(total_loss)]
             suffix_ids = best_token_ids.clone()
             _pass = 0
 

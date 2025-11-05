@@ -136,6 +136,26 @@ class LLM():
         self.generate_by_token_ids(model_inputs, length=50, stream=False)
         return self.generate_text
 
+    def stance_state(self, normal_prompts_path, harmful_prompts_path, layer=14):
+        def get_hidden_state(prompts):
+            hidden_states = []
+            for prompt in prompts:
+                self.generate(prompt, length=2, stream=False)
+                hidden_states.append(torch.cat(self.generation.hidden_states[0])[:, -10:, :])
+            hidden_states = torch.stack(hidden_states, dim=0)
+            return hidden_states
+        normal_prompts = open(normal_prompts_path, "r").readlines()[:100]
+        hidden_states = get_hidden_state(normal_prompts)
+        self.all_states = hidden_states.clone()
+        hidden_states = hidden_states.mean(dim=0)
+        self.affirmative = hidden_states[layer, -1, :]
+        harmful_prompts = open(harmful_prompts_path,"r").readlines()[:100]
+        hidden_states = get_hidden_state(harmful_prompts)
+        self.all_states = torch.stack([self.all_states, hidden_states], dim=0)
+        hidden_states = hidden_states.mean(dim=0)
+        self.refusal = hidden_states[layer, -1, :]
+        self.get_stance = True
+
 class Instence():
     def __init__(self, prompt, target, device="cpu"):
         self.prompt = prompt
